@@ -9,7 +9,6 @@ export type AppRole =
   | "attendance_officer"
   | "welfare_officer"
   | "secretary"
-  | "branch_leader"
   | "department_leader"
   | "member";
 
@@ -20,7 +19,6 @@ export const ROLE_LABELS: Record<AppRole, string> = {
   attendance_officer: "Attendance Officer",
   welfare_officer: "Welfare Officer",
   secretary: "Secretary",
-  branch_leader: "Branch Leader",
   department_leader: "Department Leader",
   member: "Member",
 };
@@ -31,7 +29,6 @@ export interface Profile {
   email: string | null;
   phone: string | null;
   department: string | null;
-  branch: string | null;
   avatar_url: string | null;
   is_active: boolean;
 }

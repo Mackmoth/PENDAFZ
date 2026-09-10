@@ -17,7 +17,6 @@ import { Route as AuthenticatedAnnouncementsRouteImport } from './routes/_authen
 import { Route as AuthenticatedAttendanceRouteImport } from './routes/_authenticated/attendance'
 import { Route as AuthenticatedAuditLogsRouteImport } from './routes/_authenticated/audit-logs'
 import { Route as AuthenticatedBirthdaysRouteImport } from './routes/_authenticated/birthdays'
-import { Route as AuthenticatedBranchesRouteImport } from './routes/_authenticated/branches'
 import { Route as AuthenticatedCalendarRouteImport } from './routes/_authenticated/calendar'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
 import { Route as AuthenticatedDepartmentsRouteImport } from './routes/_authenticated/departments'
@@ -71,11 +70,6 @@ const AuthenticatedAuditLogsRoute = AuthenticatedAuditLogsRouteImport.update({
 const AuthenticatedBirthdaysRoute = AuthenticatedBirthdaysRouteImport.update({
   id: '/birthdays',
   path: '/birthdays',
-  getParentRoute: () => AuthenticatedRouteRoute,
-} as any)
-const AuthenticatedBranchesRoute = AuthenticatedBranchesRouteImport.update({
-  id: '/branches',
-  path: '/branches',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 const AuthenticatedCalendarRoute = AuthenticatedCalendarRouteImport.update({
@@ -160,7 +154,6 @@ export interface FileRoutesByFullPath {
   '/attendance': typeof AuthenticatedAttendanceRoute
   '/audit-logs': typeof AuthenticatedAuditLogsRoute
   '/birthdays': typeof AuthenticatedBirthdaysRoute
-  '/branches': typeof AuthenticatedBranchesRoute
   '/calendar': typeof AuthenticatedCalendarRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/departments': typeof AuthenticatedDepartmentsRoute
@@ -184,7 +177,6 @@ export interface FileRoutesByTo {
   '/attendance': typeof AuthenticatedAttendanceRoute
   '/audit-logs': typeof AuthenticatedAuditLogsRoute
   '/birthdays': typeof AuthenticatedBirthdaysRoute
-  '/branches': typeof AuthenticatedBranchesRoute
   '/calendar': typeof AuthenticatedCalendarRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/departments': typeof AuthenticatedDepartmentsRoute
@@ -210,7 +202,6 @@ export interface FileRoutesById {
   '/_authenticated/attendance': typeof AuthenticatedAttendanceRoute
   '/_authenticated/audit-logs': typeof AuthenticatedAuditLogsRoute
   '/_authenticated/birthdays': typeof AuthenticatedBirthdaysRoute
-  '/_authenticated/branches': typeof AuthenticatedBranchesRoute
   '/_authenticated/calendar': typeof AuthenticatedCalendarRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/_authenticated/departments': typeof AuthenticatedDepartmentsRoute
@@ -236,7 +227,6 @@ export interface FileRouteTypes {
     | '/attendance'
     | '/audit-logs'
     | '/birthdays'
-    | '/branches'
     | '/calendar'
     | '/dashboard'
     | '/departments'
@@ -260,7 +250,6 @@ export interface FileRouteTypes {
     | '/attendance'
     | '/audit-logs'
     | '/birthdays'
-    | '/branches'
     | '/calendar'
     | '/dashboard'
     | '/departments'
@@ -285,7 +274,6 @@ export interface FileRouteTypes {
     | '/_authenticated/attendance'
     | '/_authenticated/audit-logs'
     | '/_authenticated/birthdays'
-    | '/_authenticated/branches'
     | '/_authenticated/calendar'
     | '/_authenticated/dashboard'
     | '/_authenticated/departments'
@@ -365,13 +353,6 @@ declare module '@tanstack/react-router' {
       path: '/birthdays'
       fullPath: '/birthdays'
       preLoaderRoute: typeof AuthenticatedBirthdaysRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
-    }
-    '/_authenticated/branches': {
-      id: '/_authenticated/branches'
-      path: '/branches'
-      fullPath: '/branches'
-      preLoaderRoute: typeof AuthenticatedBranchesRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/calendar': {
@@ -480,7 +461,6 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedAttendanceRoute: typeof AuthenticatedAttendanceRoute
   AuthenticatedAuditLogsRoute: typeof AuthenticatedAuditLogsRoute
   AuthenticatedBirthdaysRoute: typeof AuthenticatedBirthdaysRoute
-  AuthenticatedBranchesRoute: typeof AuthenticatedBranchesRoute
   AuthenticatedCalendarRoute: typeof AuthenticatedCalendarRoute
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
   AuthenticatedDepartmentsRoute: typeof AuthenticatedDepartmentsRoute
@@ -502,7 +482,6 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedAttendanceRoute: AuthenticatedAttendanceRoute,
   AuthenticatedAuditLogsRoute: AuthenticatedAuditLogsRoute,
   AuthenticatedBirthdaysRoute: AuthenticatedBirthdaysRoute,
-  AuthenticatedBranchesRoute: AuthenticatedBranchesRoute,
   AuthenticatedCalendarRoute: AuthenticatedCalendarRoute,
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
   AuthenticatedDepartmentsRoute: AuthenticatedDepartmentsRoute,

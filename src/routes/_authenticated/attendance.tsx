@@ -1,17 +1,33 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { PageHeader, EmptyState } from "@/components/AppShell";
+import {
+  PageHeader,
+  EmptyState,
+  PageTransition,
+  StatCard,
+  FilterBar,
+  ConfirmDeleteDialog,
+  ErrorState,
+} from "@/components/AppShell";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
 } from "@/components/ui/select";
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
 } from "@/components/ui/dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { useUserContext } from "@/lib/auth";
@@ -24,6 +40,15 @@ export const Route = createFileRoute("/_authenticated/attendance")({
   component: AttendancePage,
 });
 
+type AttendanceRow = {
+  id: string;
+  status: string;
+  time_in: string | null;
+  notes: string | null;
+  members: { full_name: string; membership_number: string } | null;
+  events: { title: string } | null;
+};
+
 function AttendancePage() {
   const { hasAnyRole } = useUserContext();
   const canRecord = hasAnyRole(["super_admin", "admin", "attendance_officer"]);
@@ -31,6 +56,8 @@ function AttendancePage() {
   const [dateFilter, setDateFilter] = useState<string>(new Date().toISOString().slice(0, 10));
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [open, setOpen] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<AttendanceRow | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const list = useQuery({
     queryKey: ["attendance", "day", dateFilter],
@@ -41,12 +68,12 @@ function AttendancePage() {
         .eq("attendance_date", dateFilter)
         .order("created_at", { ascending: false });
       if (error) throw error;
-      return data ?? [];
+      return (data ?? []) as unknown as AttendanceRow[];
     },
   });
 
   const filtered = useMemo(
-    () => (list.data ?? []).filter((a: { status: string }) => statusFilter === "all" || a.status === statusFilter),
+    () => (list.data ?? []).filter((a) => statusFilter === "all" || a.status === statusFilter),
     [list.data, statusFilter],
   );
 
@@ -54,146 +81,195 @@ function AttendancePage() {
     const items = list.data ?? [];
     return {
       total: items.length,
-      present: items.filter((i: { status: string }) => i.status === "present").length,
-      late: items.filter((i: { status: string }) => i.status === "late").length,
-      absent: items.filter((i: { status: string }) => i.status === "absent").length,
+      present: items.filter((i) => i.status === "present").length,
+      late: items.filter((i) => i.status === "late").length,
+      absent: items.filter((i) => i.status === "absent").length,
     };
   }, [list.data]);
 
+  const handleDelete = async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    const { error } = await supabase.from("attendance").delete().eq("id", deleteTarget.id);
+    setDeleting(false);
+    if (error) return toast.error(error.message);
+    toast.success("Deleted");
+    setDeleteTarget(null);
+    qc.invalidateQueries({ queryKey: ["attendance"] });
+  };
+
   return (
-    <div className="space-y-4">
-      <PageHeader
-        title="Attendance"
-        description="Record and review attendance for members."
-        action={
-          canRecord && (
-            <Button onClick={() => setOpen(true)}>
-              <Plus className="w-4 h-4 mr-2" />
-              Record attendance
-            </Button>
-          )
-        }
-      />
-
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <StatCard icon={ClipboardCheck} label="Records" value={stats.total} tone="primary" />
-        <StatCard icon={CheckCircle2} label="Present" value={stats.present} tone="success" />
-        <StatCard icon={Clock} label="Late" value={stats.late} tone="warning" />
-        <StatCard icon={XCircle} label="Absent" value={stats.absent} tone="destructive" />
-      </div>
-
-      <Card className="p-3 flex flex-wrap gap-2 items-center">
-        <div>
-          <Label className="text-xs">Date</Label>
-          <Input type="date" value={dateFilter} onChange={(e) => setDateFilter(e.target.value)} />
-        </div>
-        <div>
-          <Label className="text-xs">Status</Label>
-          <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="w-[140px]"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All</SelectItem>
-              {ATTENDANCE_STATUSES.map((s) => <SelectItem key={s} value={s}>{labelize(s)}</SelectItem>)}
-            </SelectContent>
-          </Select>
-        </div>
-      </Card>
-
-      {list.isLoading ? (
-        <Card className="p-8 text-sm text-muted-foreground text-center">Loading…</Card>
-      ) : filtered.length === 0 ? (
-        <EmptyState
-          icon={ClipboardCheck}
-          title="No attendance recorded"
-          description={`No records for ${fmtDate(dateFilter)}.`}
-          action={canRecord ? <Button onClick={() => setOpen(true)}><Plus className="w-4 h-4 mr-2" />Record now</Button> : undefined}
+    <PageTransition>
+      <div className="space-y-6">
+        <PageHeader
+          title="Attendance"
+          description="Record and review attendance for members."
+          action={
+            canRecord && (
+              <Button onClick={() => setOpen(true)}>
+                <Plus className="w-4 h-4 mr-2" />
+                Record attendance
+              </Button>
+            )
+          }
         />
-      ) : (
-        <Card className="divide-y divide-border overflow-hidden">
-          {filtered.map((a: {
-            id: string; status: string; time_in: string | null; notes: string | null;
-            members: { full_name: string; membership_number: string } | null;
-            events: { title: string } | null;
-          }) => (
-            <div key={a.id} className="px-4 py-3 flex items-center gap-3">
-              <div className="flex-1 min-w-0">
-                <div className="font-medium text-sm truncate">{a.members?.full_name ?? "—"}</div>
-                <div className="text-xs text-muted-foreground truncate">
-                  {a.members?.membership_number}
-                  {a.events?.title ? ` · ${a.events.title}` : ""}
-                  {a.time_in ? ` · ${a.time_in}` : ""}
-                </div>
-              </div>
-              <Badge variant={a.status === "present" ? "default" : "secondary"} className="text-[10px] shrink-0">
-                {labelize(a.status)}
-              </Badge>
-              {canRecord && (
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7 shrink-0"
-                  aria-label="Delete record"
-                  onClick={async () => {
-                    if (!confirm("Delete this attendance record?")) return;
-                    const { error } = await supabase.from("attendance").delete().eq("id", a.id);
-                    if (error) return toast.error(error.message);
-                    toast.success("Deleted");
-                    qc.invalidateQueries({ queryKey: ["attendance"] });
-                  }}
-                >
-                  <Trash2 className="w-3.5 h-3.5 text-destructive" />
-                </Button>
-              )}
+
+        {list.isLoading ? (
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            {[0, 1, 2, 3].map((i) => (
+              <StatCard key={i} label="" value="" icon={ClipboardCheck} loading />
+            ))}
+          </div>
+        ) : list.isError ? (
+          <ErrorState message="Could not load attendance" onRetry={() => list.refetch()} />
+        ) : (
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <StatCard icon={ClipboardCheck} label="Records" value={String(stats.total)} />
+            <StatCard
+              icon={CheckCircle2}
+              label="Present"
+              value={String(stats.present)}
+              tone="success"
+            />
+            <StatCard icon={Clock} label="Late" value={String(stats.late)} tone="warning" />
+            <StatCard
+              icon={XCircle}
+              label="Absent"
+              value={String(stats.absent)}
+              tone="destructive"
+            />
+          </div>
+        )}
+
+        <FilterBar>
+          <div className="flex items-end gap-2 flex-wrap flex-1">
+            <div>
+              <Label className="text-xs">Date</Label>
+              <Input
+                type="date"
+                value={dateFilter}
+                onChange={(e) => setDateFilter(e.target.value)}
+                className="w-full sm:w-auto"
+              />
             </div>
-          ))}
-        </Card>
+            <div>
+              <Label className="text-xs">Status</Label>
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger className="w-[140px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All</SelectItem>
+                  {ATTENDANCE_STATUSES.map((s) => (
+                    <SelectItem key={s} value={s}>
+                      {labelize(s)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        </FilterBar>
 
-      )}
+        {list.isLoading ? (
+          <div className="skeleton-card divide-y divide-border overflow-hidden">
+            {[0, 1, 2, 3].map((i) => (
+              <div key={i} className="flex items-center gap-3 px-4 py-3">
+                <div className="flex-1 space-y-2">
+                  <div className="skeleton skeleton-text w-2/3" />
+                  <div className="skeleton skeleton-text w-1/3" />
+                </div>
+                <div className="skeleton skeleton-text w-14" />
+              </div>
+            ))}
+          </div>
+        ) : filtered.length === 0 ? (
+          <EmptyState
+            icon={ClipboardCheck}
+            title="No attendance recorded"
+            description={`No records for ${fmtDate(dateFilter)}.`}
+            action={
+              canRecord ? (
+                <Button onClick={() => setOpen(true)}>
+                  <Plus className="w-4 h-4 mr-2" />
+                  Record now
+                </Button>
+              ) : undefined
+            }
+          />
+        ) : (
+          <Card className="divide-y divide-border overflow-hidden animate-fade-in">
+            {filtered.map((a) => (
+              <div
+                key={a.id}
+                className="px-4 py-3 flex items-center gap-3 hover:bg-accent/40 transition-colors"
+              >
+                <div className="flex-1 min-w-0">
+                  <div className="font-medium text-sm truncate">{a.members?.full_name ?? "—"}</div>
+                  <div className="text-xs text-muted-foreground truncate">
+                    {a.members?.membership_number}
+                    {a.events?.title ? ` · ${a.events.title}` : ""}
+                    {a.time_in ? ` · ${a.time_in}` : ""}
+                  </div>
+                </div>
+                <Badge
+                  variant={
+                    a.status === "present"
+                      ? "default"
+                      : a.status === "absent"
+                        ? "destructive"
+                        : "secondary"
+                  }
+                  className="text-[10px] shrink-0"
+                >
+                  {labelize(a.status)}
+                </Badge>
+                {canRecord && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7 shrink-0"
+                    aria-label="Delete record"
+                    onClick={() => setDeleteTarget(a)}
+                  >
+                    <Trash2 className="w-3.5 h-3.5 text-destructive" />
+                  </Button>
+                )}
+              </div>
+            ))}
+          </Card>
+        )}
 
-      <RecordAttendanceDialog
-        open={open}
-        onOpenChange={setOpen}
-        defaultDate={dateFilter}
-        onSaved={() => qc.invalidateQueries({ queryKey: ["attendance"] })}
-      />
-    </div>
-  );
-}
+        <ConfirmDeleteDialog
+          open={!!deleteTarget}
+          onOpenChange={(v) => !v && setDeleteTarget(null)}
+          title="Delete attendance record?"
+          description={`This will permanently remove the attendance record for ${deleteTarget?.members?.full_name ?? "this member"} on ${fmtDate(dateFilter)}.`}
+          onConfirm={handleDelete}
+          loading={deleting}
+        />
 
-function StatCard({
-  icon: Icon,
-  label,
-  value,
-  tone,
-}: {
-  icon: React.ComponentType<{ className?: string }>;
-  label: string;
-  value: number;
-  tone: "primary" | "success" | "warning" | "destructive";
-}) {
-  const toneCls = {
-    primary: "bg-primary/10 text-primary",
-    success: "bg-success/10 text-success",
-    warning: "bg-warning/10 text-warning",
-    destructive: "bg-destructive/10 text-destructive",
-  }[tone];
-  return (
-    <Card className="p-3 flex items-center gap-3">
-      <div className={`w-9 h-9 rounded-lg flex items-center justify-center ${toneCls}`}>
-        <Icon className="w-4 h-4" />
+        <RecordAttendanceDialog
+          open={open}
+          onOpenChange={setOpen}
+          defaultDate={dateFilter}
+          onSaved={() => qc.invalidateQueries({ queryKey: ["attendance"] })}
+        />
       </div>
-      <div>
-        <div className="text-xs text-muted-foreground">{label}</div>
-        <div className="text-lg font-semibold text-foreground">{value}</div>
-      </div>
-    </Card>
+    </PageTransition>
   );
 }
 
 function RecordAttendanceDialog({
-  open, onOpenChange, defaultDate, onSaved,
+  open,
+  onOpenChange,
+  defaultDate,
+  onSaved,
 }: {
-  open: boolean; onOpenChange: (v: boolean) => void; defaultDate: string; onSaved: () => void;
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  defaultDate: string;
+  onSaved: () => void;
 }) {
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState<Member | null>(null);
@@ -206,7 +282,9 @@ function RecordAttendanceDialog({
     queryFn: async () => {
       let qb = supabase.from("members").select("*").order("full_name").limit(20);
       if (search.trim()) {
-        qb = qb.or(`full_name.ilike.%${search}%,membership_number.ilike.%${search}%,phone.ilike.%${search}%`);
+        qb = qb.or(
+          `full_name.ilike.%${search}%,membership_number.ilike.%${search}%,phone.ilike.%${search}%`,
+        );
       }
       const { data, error } = await qb;
       if (error) throw error;
@@ -223,7 +301,6 @@ function RecordAttendanceDialog({
         status: status as never,
         attendance_date: date,
         time_in: new Date().toTimeString().slice(0, 8),
-        branch_id: selected.branch_id,
         department_id: selected.department_id,
         notes: notes || null,
       } as never);
@@ -263,14 +340,16 @@ function RecordAttendanceDialog({
                   <button
                     key={m.id}
                     onClick={() => setSelected(m)}
-                    className="w-full text-left px-3 py-2 hover:bg-accent"
+                    className="w-full text-left px-3 py-2 hover:bg-accent transition-colors"
                   >
                     <div className="text-sm font-medium">{m.full_name}</div>
                     <div className="text-xs text-muted-foreground">{m.membership_number}</div>
                   </button>
                 ))}
                 {members.data?.length === 0 && (
-                  <div className="p-4 text-sm text-muted-foreground text-center">No members found.</div>
+                  <div className="p-4 text-sm text-muted-foreground text-center">
+                    No members found.
+                  </div>
                 )}
               </div>
             </>
@@ -279,7 +358,12 @@ function RecordAttendanceDialog({
               <Card className="p-3">
                 <div className="text-sm font-medium">{selected.full_name}</div>
                 <div className="text-xs text-muted-foreground">{selected.membership_number}</div>
-                <Button variant="link" size="sm" className="px-0 h-auto mt-1" onClick={() => setSelected(null)}>
+                <Button
+                  variant="link"
+                  size="sm"
+                  className="px-0 h-auto mt-1"
+                  onClick={() => setSelected(null)}
+                >
                   Change member
                 </Button>
               </Card>
@@ -291,9 +375,15 @@ function RecordAttendanceDialog({
                 <div>
                   <Label>Status</Label>
                   <Select value={status} onValueChange={setStatus}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
                     <SelectContent>
-                      {ATTENDANCE_STATUSES.map((s) => <SelectItem key={s} value={s}>{labelize(s)}</SelectItem>)}
+                      {ATTENDANCE_STATUSES.map((s) => (
+                        <SelectItem key={s} value={s}>
+                          {labelize(s)}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
@@ -306,7 +396,9 @@ function RecordAttendanceDialog({
           )}
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
+            Cancel
+          </Button>
           <Button onClick={() => record.mutate()} disabled={!selected || record.isPending}>
             {record.isPending ? "Saving…" : "Record"}
           </Button>

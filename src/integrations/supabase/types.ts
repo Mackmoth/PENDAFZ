@@ -62,7 +62,6 @@ export type Database = {
       attendance: {
         Row: {
           attendance_date: string
-          branch_id: string | null
           created_at: string
           department_id: string | null
           event_id: string | null
@@ -75,7 +74,6 @@ export type Database = {
         }
         Insert: {
           attendance_date?: string
-          branch_id?: string | null
           created_at?: string
           department_id?: string | null
           event_id?: string | null
@@ -88,7 +86,6 @@ export type Database = {
         }
         Update: {
           attendance_date?: string
-          branch_id?: string | null
           created_at?: string
           department_id?: string | null
           event_id?: string | null
@@ -100,13 +97,6 @@ export type Database = {
           time_in?: string | null
         }
         Relationships: [
-          {
-            foreignKeyName: "attendance_branch_id_fkey"
-            columns: ["branch_id"]
-            isOneToOne: false
-            referencedRelation: "branches"
-            referencedColumns: ["id"]
-          },
           {
             foreignKeyName: "attendance_department_id_fkey"
             columns: ["department_id"]
@@ -169,39 +159,6 @@ export type Database = {
           target_type?: string | null
           user_agent?: string | null
           user_id?: string | null
-        }
-        Relationships: []
-      }
-      branches: {
-        Row: {
-          contact_person: string | null
-          created_at: string
-          id: string
-          is_active: boolean
-          location: string | null
-          name: string
-          phone: string | null
-          updated_at: string
-        }
-        Insert: {
-          contact_person?: string | null
-          created_at?: string
-          id?: string
-          is_active?: boolean
-          location?: string | null
-          name: string
-          phone?: string | null
-          updated_at?: string
-        }
-        Update: {
-          contact_person?: string | null
-          created_at?: string
-          id?: string
-          is_active?: boolean
-          location?: string | null
-          name?: string
-          phone?: string | null
-          updated_at?: string
         }
         Relationships: []
       }
@@ -276,7 +233,6 @@ export type Database = {
       }
       events: {
         Row: {
-          branch_id: string | null
           category: string | null
           created_at: string
           created_by: string | null
@@ -295,7 +251,6 @@ export type Database = {
           venue: string | null
         }
         Insert: {
-          branch_id?: string | null
           category?: string | null
           created_at?: string
           created_by?: string | null
@@ -314,7 +269,6 @@ export type Database = {
           venue?: string | null
         }
         Update: {
-          branch_id?: string | null
           category?: string | null
           created_at?: string
           created_by?: string | null
@@ -333,13 +287,6 @@ export type Database = {
           venue?: string | null
         }
         Relationships: [
-          {
-            foreignKeyName: "events_branch_id_fkey"
-            columns: ["branch_id"]
-            isOneToOne: false
-            referencedRelation: "branches"
-            referencedColumns: ["id"]
-          },
           {
             foreignKeyName: "events_department_id_fkey"
             columns: ["department_id"]
@@ -435,7 +382,6 @@ export type Database = {
       members: {
         Row: {
           address: string | null
-          branch_id: string | null
           category: string | null
           created_at: string
           created_by: string | null
@@ -467,7 +413,6 @@ export type Database = {
         }
         Insert: {
           address?: string | null
-          branch_id?: string | null
           category?: string | null
           created_at?: string
           created_by?: string | null
@@ -499,7 +444,6 @@ export type Database = {
         }
         Update: {
           address?: string | null
-          branch_id?: string | null
           category?: string | null
           created_at?: string
           created_by?: string | null
@@ -530,13 +474,6 @@ export type Database = {
           whatsapp?: string | null
         }
         Relationships: [
-          {
-            foreignKeyName: "members_branch_id_fkey"
-            columns: ["branch_id"]
-            isOneToOne: false
-            referencedRelation: "branches"
-            referencedColumns: ["id"]
-          },
           {
             foreignKeyName: "members_department_id_fkey"
             columns: ["department_id"]
@@ -750,8 +687,6 @@ export type Database = {
         Row: {
           accepted_terms_at: string | null
           avatar_url: string | null
-          branch: string | null
-          branch_id: string | null
           created_at: string
           created_by: string | null
           date_joined: string | null
@@ -771,8 +706,6 @@ export type Database = {
         Insert: {
           accepted_terms_at?: string | null
           avatar_url?: string | null
-          branch?: string | null
-          branch_id?: string | null
           created_at?: string
           created_by?: string | null
           date_joined?: string | null
@@ -792,8 +725,6 @@ export type Database = {
         Update: {
           accepted_terms_at?: string | null
           avatar_url?: string | null
-          branch?: string | null
-          branch_id?: string | null
           created_at?: string
           created_by?: string | null
           date_joined?: string | null
@@ -811,13 +742,6 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
-          {
-            foreignKeyName: "profiles_branch_fk"
-            columns: ["branch_id"]
-            isOneToOne: false
-            referencedRelation: "branches"
-            referencedColumns: ["id"]
-          },
           {
             foreignKeyName: "profiles_department_fk"
             columns: ["department_id"]
@@ -1027,7 +951,6 @@ export type Database = {
         | "attendance_officer"
         | "welfare_officer"
         | "secretary"
-        | "branch_leader"
         | "department_leader"
         | "member"
       attendance_status: "present" | "absent" | "late" | "excused" | "visitor"
@@ -1203,7 +1126,6 @@ export const Constants = {
         "attendance_officer",
         "welfare_officer",
         "secretary",
-        "branch_leader",
         "department_leader",
         "member",
       ],

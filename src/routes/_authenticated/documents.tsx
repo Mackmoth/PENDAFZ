@@ -3,27 +3,54 @@ import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useUserContext } from "@/lib/auth";
-import { PageHeader, EmptyState } from "@/components/AppShell";
+import {
+  PageHeader,
+  EmptyState,
+  PageTransition,
+  FilterBar,
+  ConfirmDeleteDialog,
+} from "@/components/AppShell";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
 } from "@/components/ui/dialog";
 import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
 } from "@/components/ui/select";
-import { fetchBranches, fmtDate, type Member } from "@/lib/pfms";
+import { fmtDate, type Member } from "@/lib/pfms";
 import { toast } from "sonner";
-import { FileText, Upload, Search, Download, Trash2, Eye, Loader2, Paperclip } from "lucide-react";
+import {
+  FileText,
+  Upload,
+  Search,
+  Download,
+  Trash2,
+  Eye,
+  Loader2,
+  Paperclip,
+  Frown,
+} from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/documents")({
   head: () => ({
     meta: [
       { title: "Documents — PFMS" },
-      { name: "description", content: "Central repository for member documents, receipts, forms and reports." },
+      {
+        name: "description",
+        content: "Central repository for member documents, receipts, forms and reports.",
+      },
     ],
   }),
   component: DocumentsPage,
@@ -60,6 +87,8 @@ function DocumentsPage() {
   const [type, setType] = useState<string>("all");
   const [uploadOpen, setUploadOpen] = useState(false);
   const [preview, setPreview] = useState<DocRow | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<DocRow | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const docs = useQuery({
     queryKey: ["documents"],
@@ -101,6 +130,14 @@ function DocumentsPage() {
     onError: (e: Error) => toast.error(e.message),
   });
 
+  const handleDelete = async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    await del.mutateAsync(deleteTarget).catch(() => {});
+    setDeleting(false);
+    setDeleteTarget(null);
+  };
+
   const openSigned = async (d: DocRow, download = false) => {
     const { data, error } = await supabase.storage
       .from("member-files")
@@ -110,132 +147,174 @@ function DocumentsPage() {
   };
 
   return (
-    <div className="space-y-4">
-      <PageHeader
-        title="Documents"
-        description="Membership forms, receipts, certificates and reports."
-        action={
-          canManage && (
-            <Button onClick={() => setUploadOpen(true)}>
-              <Upload className="w-4 h-4 mr-2" />
-              Upload document
-            </Button>
-          )
-        }
-      />
-
-      <Card className="p-3 flex flex-wrap gap-2 items-center">
-        <div className="relative flex-1 min-w-[220px]">
-          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            placeholder="Search file, member, number"
-            className="pl-9"
-          />
-        </div>
-        <Select value={type} onValueChange={setType}>
-          <SelectTrigger className="w-[180px]"><SelectValue /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All types</SelectItem>
-            {DOC_TYPES.map((t) => (
-              <SelectItem key={t} value={t}>{t.replace(/_/g, " ")}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </Card>
-
-      {docs.isLoading ? (
-        <div className="py-10 text-center">
-          <Loader2 className="w-5 h-5 animate-spin inline text-muted-foreground" />
-        </div>
-      ) : filtered.length === 0 ? (
-        <EmptyState
-          icon={FileText}
-          title={docs.data?.length ? "No documents match your filters" : "No documents yet"}
-          description={
-            docs.data?.length
-              ? "Try clearing filters or search."
-              : "Upload the first document to get started."
+    <PageTransition>
+      <div className="space-y-6">
+        <PageHeader
+          title="Documents"
+          description="Membership forms, receipts, certificates and reports."
+          action={
+            canManage && (
+              <Button onClick={() => setUploadOpen(true)}>
+                <Upload className="w-4 h-4 mr-2" />
+                Upload document
+              </Button>
+            )
           }
-          action={canManage && !docs.data?.length ? (
-            <Button onClick={() => setUploadOpen(true)}><Upload className="w-4 h-4 mr-2" />Upload document</Button>
-          ) : undefined}
         />
-      ) : (
-        <Card className="divide-y divide-border overflow-hidden">
-          {filtered.map((d) => (
-            <div key={d.id} className="flex items-center gap-3 px-4 py-3">
-              <div className="w-10 h-10 rounded-lg bg-primary/10 text-primary flex items-center justify-center flex-shrink-0">
-                <Paperclip className="w-4 h-4" />
-              </div>
-              <button
-                onClick={() => setPreview(d)}
-                className="flex-1 min-w-0 text-left"
-              >
-                <div className="font-medium text-sm text-foreground truncate">{d.file_name}</div>
-                <div className="text-xs text-muted-foreground truncate">
-                  {d.members?.full_name ?? "—"}
-                  {d.members?.membership_number ? ` · ${d.members.membership_number}` : ""}
-                  {" · "}{fmtDate(d.created_at)}
-                  {d.size_bytes ? ` · ${formatSize(d.size_bytes)}` : ""}
+
+        <FilterBar>
+          <div className="relative flex-1 min-w-[220px]">
+            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              placeholder="Search file, member, number"
+              className="pl-9"
+            />
+          </div>
+          <Select value={type} onValueChange={setType}>
+            <SelectTrigger className="w-[180px]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All types</SelectItem>
+              {DOC_TYPES.map((t) => (
+                <SelectItem key={t} value={t}>
+                  {t.replace(/_/g, " ")}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </FilterBar>
+
+        {docs.isLoading ? (
+          <div className="skeleton-card divide-y divide-border overflow-hidden">
+            {[0, 1, 2, 3, 4].map((i) => (
+              <div key={i} className="flex items-center gap-3 px-4 py-3">
+                <div className="skeleton skeleton-circle w-10 h-10" />
+                <div className="flex-1 space-y-2">
+                  <div className="skeleton skeleton-text w-2/3" />
+                  <div className="skeleton skeleton-text w-1/2" />
                 </div>
-              </button>
-              {d.doc_type && (
-                <Badge variant="outline" className="text-[10px] hidden sm:inline-flex">
-                  {d.doc_type.replace(/_/g, " ")}
-                </Badge>
-              )}
-              <Button variant="ghost" size="icon" aria-label="Preview" onClick={() => setPreview(d)}>
-                <Eye className="w-4 h-4" />
-              </Button>
-              <Button variant="ghost" size="icon" aria-label="Download" onClick={() => openSigned(d, true)}>
-                <Download className="w-4 h-4" />
-              </Button>
-              {canManage && (
+              </div>
+            ))}
+          </div>
+        ) : filtered.length === 0 ? (
+          <EmptyState
+            icon={docs.data?.length ? Frown : FileText}
+            title={docs.data?.length ? "No documents match your filters" : "No documents yet"}
+            description={
+              docs.data?.length
+                ? "Try clearing filters or search."
+                : "Upload the first document to get started."
+            }
+            action={
+              canManage && !docs.data?.length ? (
+                <Button onClick={() => setUploadOpen(true)}>
+                  <Upload className="w-4 h-4 mr-2" />
+                  Upload document
+                </Button>
+              ) : undefined
+            }
+          />
+        ) : (
+          <Card className="divide-y divide-border overflow-hidden animate-fade-in">
+            {filtered.map((d) => (
+              <div
+                key={d.id}
+                className="flex items-center gap-3 px-4 py-3 hover:bg-accent/40 transition-colors"
+              >
+                <div className="w-10 h-10 rounded-lg bg-primary/10 text-primary flex items-center justify-center flex-shrink-0">
+                  <Paperclip className="w-4 h-4" />
+                </div>
+                <button onClick={() => setPreview(d)} className="flex-1 min-w-0 text-left">
+                  <div className="font-medium text-sm text-foreground truncate">{d.file_name}</div>
+                  <div className="text-xs text-muted-foreground truncate">
+                    {d.members?.full_name ?? "—"}
+                    {d.members?.membership_number ? ` · ${d.members.membership_number}` : ""}
+                    {" · "}
+                    {fmtDate(d.created_at)}
+                    {d.size_bytes ? ` · ${formatSize(d.size_bytes)}` : ""}
+                  </div>
+                </button>
+                {d.doc_type && (
+                  <Badge variant="outline" className="text-[10px] hidden sm:inline-flex">
+                    {d.doc_type.replace(/_/g, " ")}
+                  </Badge>
+                )}
                 <Button
                   variant="ghost"
                   size="icon"
-                  aria-label="Delete"
-                  className="text-destructive hover:text-destructive"
-                  onClick={() => {
-                    if (confirm(`Delete "${d.file_name}"?`)) del.mutate(d);
-                  }}
+                  aria-label="Preview"
+                  onClick={() => setPreview(d)}
                 >
-                  <Trash2 className="w-4 h-4" />
+                  <Eye className="w-4 h-4" />
                 </Button>
-              )}
-            </div>
-          ))}
-        </Card>
-      )}
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  aria-label="Download"
+                  onClick={() => openSigned(d, true)}
+                >
+                  <Download className="w-4 h-4" />
+                </Button>
+                {canManage && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    aria-label="Delete"
+                    className="text-destructive hover:text-destructive"
+                    onClick={() => setDeleteTarget(d)}
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
+                )}
+              </div>
+            ))}
+          </Card>
+        )}
 
-      <UploadDialog
-        open={uploadOpen}
-        onOpenChange={setUploadOpen}
-        onSaved={() => qc.invalidateQueries({ queryKey: ["documents"] })}
-      />
+        <ConfirmDeleteDialog
+          open={!!deleteTarget}
+          onOpenChange={(v) => !v && setDeleteTarget(null)}
+          title={`Delete "${deleteTarget?.file_name ?? ""}"?`}
+          description="This permanently removes the document from storage and the library."
+          onConfirm={handleDelete}
+          loading={deleting}
+        />
 
-      <PreviewDialog doc={preview} onClose={() => setPreview(null)} />
-    </div>
+        <UploadDialog
+          open={uploadOpen}
+          onOpenChange={setUploadOpen}
+          onSaved={() => qc.invalidateQueries({ queryKey: ["documents"] })}
+        />
+
+        <PreviewDialog doc={preview} onClose={() => setPreview(null)} />
+      </div>
+    </PageTransition>
   );
 }
 
 function UploadDialog({
-  open, onOpenChange, onSaved,
-}: { open: boolean; onOpenChange: (v: boolean) => void; onSaved: () => void }) {
+  open,
+  onOpenChange,
+  onSaved,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  onSaved: () => void;
+}) {
   const [search, setSearch] = useState("");
   const [member, setMember] = useState<Member | null>(null);
   const [docType, setDocType] = useState<string>("other");
   const [file, setFile] = useState<File | null>(null);
 
-  useQuery({ queryKey: ["branches"], queryFn: fetchBranches, enabled: false });
-
   const members = useQuery({
     queryKey: ["members", "doc-picker", search],
     queryFn: async () => {
       let qb = supabase.from("members").select("*").order("full_name").limit(15);
-      if (search.trim()) qb = qb.or(`full_name.ilike.%${search}%,membership_number.ilike.%${search}%`);
+      if (search.trim())
+        qb = qb.or(`full_name.ilike.%${search}%,membership_number.ilike.%${search}%`);
       const { data, error } = await qb;
       if (error) throw error;
       return (data ?? []) as Member[];
@@ -266,7 +345,10 @@ function UploadDialog({
       toast.success("Document uploaded");
       onSaved();
       onOpenChange(false);
-      setMember(null); setFile(null); setDocType("other"); setSearch("");
+      setMember(null);
+      setFile(null);
+      setDocType("other");
+      setSearch("");
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -274,13 +356,20 @@ function UploadDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-lg">
-        <DialogHeader><DialogTitle>Upload document</DialogTitle></DialogHeader>
+        <DialogHeader>
+          <DialogTitle>Upload document</DialogTitle>
+        </DialogHeader>
         <div className="space-y-3">
           {member ? (
             <Card className="p-3">
               <div className="text-sm font-medium">{member.full_name}</div>
               <div className="text-xs text-muted-foreground">{member.membership_number}</div>
-              <Button variant="link" size="sm" className="px-0 h-auto mt-1" onClick={() => setMember(null)}>
+              <Button
+                variant="link"
+                size="sm"
+                className="px-0 h-auto mt-1"
+                onClick={() => setMember(null)}
+              >
                 Change member
               </Button>
             </Card>
@@ -288,11 +377,21 @@ function UploadDialog({
             <>
               <div className="relative">
                 <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                <Input autoFocus placeholder="Search member" className="pl-9" value={search} onChange={(e) => setSearch(e.target.value)} />
+                <Input
+                  autoFocus
+                  placeholder="Search member"
+                  className="pl-9"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                />
               </div>
               <div className="max-h-48 overflow-y-auto border rounded-md divide-y">
                 {(members.data ?? []).map((m) => (
-                  <button key={m.id} onClick={() => setMember(m)} className="w-full text-left px-3 py-2 hover:bg-accent">
+                  <button
+                    key={m.id}
+                    onClick={() => setMember(m)}
+                    className="w-full text-left px-3 py-2 hover:bg-accent transition-colors"
+                  >
                     <div className="text-sm font-medium">{m.full_name}</div>
                     <div className="text-xs text-muted-foreground">{m.membership_number}</div>
                   </button>
@@ -303,10 +402,14 @@ function UploadDialog({
           <div>
             <Label>Document type</Label>
             <Select value={docType} onValueChange={setDocType}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
               <SelectContent>
                 {DOC_TYPES.map((t) => (
-                  <SelectItem key={t} value={t}>{t.replace(/_/g, " ")}</SelectItem>
+                  <SelectItem key={t} value={t}>
+                    {t.replace(/_/g, " ")}
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -322,8 +425,11 @@ function UploadDialog({
           </div>
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
+            Cancel
+          </Button>
           <Button onClick={() => upload.mutate()} disabled={upload.isPending}>
+            {upload.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : null}
             {upload.isPending ? "Uploading…" : "Upload"}
           </Button>
         </DialogFooter>
@@ -357,7 +463,9 @@ function PreviewDialog({ doc, onClose }: { doc: DocRow | null; onClose: () => vo
         </DialogHeader>
         <div className="min-h-[300px] bg-muted rounded-md overflow-hidden flex items-center justify-center">
           {url.isLoading ? (
-            <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+            <div className="skeleton skeleton-card w-full h-[300px] flex items-center justify-center">
+              <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+            </div>
           ) : url.data ? (
             isImage ? (
               <img src={url.data} alt={doc.file_name} className="max-h-[70vh] object-contain" />
@@ -366,17 +474,26 @@ function PreviewDialog({ doc, onClose }: { doc: DocRow | null; onClose: () => vo
             ) : (
               <div className="p-8 text-center">
                 <FileText className="w-12 h-12 text-muted-foreground mx-auto mb-2" />
-                <p className="text-sm text-muted-foreground">Preview not available for this file type.</p>
+                <p className="text-sm text-muted-foreground">
+                  Preview not available for this file type.
+                </p>
               </div>
             )
+          ) : url.isError ? (
+            <div className="p-8 text-center">
+              <p className="text-sm text-destructive">Could not load preview.</p>
+            </div>
           ) : null}
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={onClose}>Close</Button>
+          <Button variant="outline" onClick={onClose}>
+            Close
+          </Button>
           {url.data && (
             <Button asChild>
               <a href={url.data} download={doc.file_name} target="_blank" rel="noreferrer">
-                <Download className="w-4 h-4 mr-2" />Download
+                <Download className="w-4 h-4 mr-2" />
+                Download
               </a>
             </Button>
           )}

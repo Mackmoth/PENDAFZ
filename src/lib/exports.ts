@@ -64,12 +64,9 @@ export function exportPdf(
     doc.setPage(i);
     doc.setFontSize(8);
     doc.setTextColor(150);
-    doc.text(
-      `Page ${i} of ${pages}`,
-      pageWidth - 40,
-      doc.internal.pageSize.getHeight() - 20,
-      { align: "right" },
-    );
+    doc.text(`Page ${i} of ${pages}`, pageWidth - 40, doc.internal.pageSize.getHeight() - 20, {
+      align: "right",
+    });
   }
 
   doc.save(filename(name, "pdf"));
@@ -84,6 +81,7 @@ export function exportReceiptPdf(payment: {
   method: string;
   reference_number?: string | null;
   notes?: string | null;
+  period?: string | null;
   members?: { full_name?: string | null; membership_number?: string | null } | null;
 }) {
   const doc = new jsPDF({ unit: "pt", format: "a5" });
@@ -108,6 +106,7 @@ export function exportReceiptPdf(payment: {
     ["Type", payment.payment_type.replace(/_/g, " ")],
     ["Method", payment.method.replace(/_/g, " ")],
   ];
+  if (payment.period) rows.push(["For", payment.period]);
   if (payment.reference_number) rows.push(["Reference", payment.reference_number]);
 
   autoTable(doc, {

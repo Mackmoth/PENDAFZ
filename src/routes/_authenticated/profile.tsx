@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useUserContext, ROLE_LABELS } from "@/lib/auth";
-import { PageHeader } from "@/components/AppShell";
+import { PageHeader, PageTransition } from "@/components/AppShell";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -25,7 +25,6 @@ function ProfilePage() {
   const [dob, setDob] = useState("");
   const [saving, setSaving] = useState(false);
   const [deptName, setDeptName] = useState<string | null>(null);
-  const [branchName, setBranchName] = useState<string | null>(null);
 
   useEffect(() => {
     if (!profile) return;
@@ -42,22 +41,23 @@ function ProfilePage() {
           .maybeSingle();
         setDeptName(data?.name ?? null);
       }
-      if ((profile as any).branch_id) {
-        const { data } = await supabase
-          .from("branches")
-          .select("name")
-          .eq("id", (profile as any).branch_id)
-          .maybeSingle();
-        setBranchName(data?.name ?? null);
-      }
     })();
   }, [profile]);
 
   if (!user || !profile) {
     return (
-      <div className="py-10 text-center text-muted-foreground">
-        <Loader2 className="w-5 h-5 animate-spin inline" />
-      </div>
+      <PageTransition>
+        <div className="max-w-2xl mx-auto space-y-6">
+          <div className="skeleton skeleton-text-lg w-40" />
+          <div className="skeleton-card p-6 flex items-center gap-4">
+            <div className="skeleton skeleton-circle w-16 h-16" />
+            <div className="flex-1 space-y-2">
+              <div className="skeleton skeleton-text w-1/3" />
+              <div className="skeleton skeleton-text w-1/2" />
+            </div>
+          </div>
+        </div>
+      </PageTransition>
     );
   }
 
@@ -85,85 +85,89 @@ function ProfilePage() {
     .toUpperCase();
 
   return (
-    <div className="max-w-2xl mx-auto space-y-6">
-      <PageHeader title="My profile" description="Update your personal information." />
+    <PageTransition>
+      <div className="max-w-2xl mx-auto space-y-6">
+        <PageHeader title="My profile" description="Update your personal information." />
 
-      <Card className="p-6">
-        <div className="flex items-center gap-4">
-          <Avatar className="w-16 h-16">
-            <AvatarFallback className="bg-primary text-primary-foreground text-lg font-semibold">
-              {initials}
-            </AvatarFallback>
-          </Avatar>
-          <div>
-            <div className="font-semibold text-foreground">{fullName || "Unnamed"}</div>
-            <div className="text-sm text-muted-foreground">{profile.email}</div>
-            <div className="flex flex-wrap gap-1.5 mt-2">
-              {roles.map((r) => (
-                <Badge key={r} variant="secondary">{ROLE_LABELS[r]}</Badge>
-              ))}
+        <Card className="p-6 animate-fade-in">
+          <div className="flex items-center gap-4">
+            <Avatar className="w-16 h-16">
+              <AvatarFallback className="bg-primary text-primary-foreground text-lg font-semibold">
+                {initials}
+              </AvatarFallback>
+            </Avatar>
+            <div>
+              <div className="font-semibold text-foreground">{fullName || "Unnamed"}</div>
+              <div className="text-sm text-muted-foreground">{profile.email}</div>
+              <div className="flex flex-wrap gap-1.5 mt-2">
+                {roles.map((r) => (
+                  <Badge key={r} variant="secondary">
+                    {ROLE_LABELS[r]}
+                  </Badge>
+                ))}
+              </div>
             </div>
           </div>
-        </div>
-      </Card>
+        </Card>
 
-      <Card className="p-6 space-y-4">
-        <h3 className="font-semibold text-foreground">Personal information</h3>
-        <div className="grid gap-4 md:grid-cols-2">
-          <div className="space-y-2">
-            <Label>Full name</Label>
-            <Input value={fullName} onChange={(e) => setFullName(e.target.value)} />
-          </div>
-          <div className="space-y-2">
-            <Label>Phone</Label>
-            <Input value={phone} onChange={(e) => setPhone(e.target.value)} />
-          </div>
-          <div className="space-y-2">
-            <Label>Gender</Label>
-            <Input value={gender} onChange={(e) => setGender(e.target.value)} placeholder="e.g. Male / Female" />
-          </div>
-          <div className="space-y-2">
-            <Label>Date of birth</Label>
-            <Input type="date" value={dob} onChange={(e) => setDob(e.target.value)} />
-          </div>
-        </div>
-        <div className="flex justify-end">
-          <Button onClick={save} disabled={saving}>
-            {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : "Save changes"}
-          </Button>
-        </div>
-      </Card>
-
-      <Card className="p-6 space-y-3">
-        <h3 className="font-semibold text-foreground">Organization</h3>
-        <p className="text-xs text-muted-foreground">
-          Department, branch and role are managed by the Super Admin.
-        </p>
-        <div className="grid grid-cols-2 gap-3 text-sm">
-          <div>
-            <div className="text-xs text-muted-foreground">Department</div>
-            <div className="font-medium">{deptName ?? "—"}</div>
-          </div>
-          <div>
-            <div className="text-xs text-muted-foreground">Branch</div>
-            <div className="font-medium">{branchName ?? "—"}</div>
-          </div>
-          <div>
-            <div className="text-xs text-muted-foreground">Status</div>
-            <div className="font-medium capitalize">
-              {(profile as any).status?.replace("_", " ") ?? "—"}
+        <Card className="p-6 space-y-4 animate-fade-in animate-fade-in-delay-1">
+          <h3 className="font-semibold text-foreground">Personal information</h3>
+          <div className="grid gap-4 md:grid-cols-2">
+            <div className="space-y-2">
+              <Label>Full name</Label>
+              <Input value={fullName} onChange={(e) => setFullName(e.target.value)} />
+            </div>
+            <div className="space-y-2">
+              <Label>Phone</Label>
+              <Input value={phone} onChange={(e) => setPhone(e.target.value)} />
+            </div>
+            <div className="space-y-2">
+              <Label>Gender</Label>
+              <Input
+                value={gender}
+                onChange={(e) => setGender(e.target.value)}
+                placeholder="e.g. Male / Female"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Date of birth</Label>
+              <Input type="date" value={dob} onChange={(e) => setDob(e.target.value)} />
             </div>
           </div>
-          <div>
-            <div className="text-xs text-muted-foreground">Last login</div>
-            <div className="font-medium">
-              {(profile as any).last_login
-                ? new Date((profile as any).last_login).toLocaleString()
-                : "—"}
+          <div className="flex justify-end">
+            <Button onClick={save} disabled={saving}>
+              {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : "Save changes"}
+            </Button>
+          </div>
+        </Card>
+
+        <Card className="p-6 space-y-3 animate-fade-in animate-fade-in-delay-2">
+          <h3 className="font-semibold text-foreground">Organization</h3>
+          <p className="text-xs text-muted-foreground">
+            Department and role are managed by the Super Admin.
+          </p>
+          <div className="grid grid-cols-2 gap-3 text-sm">
+            <div>
+              <div className="text-xs text-muted-foreground">Department</div>
+              <div className="font-medium">{deptName ?? "—"}</div>
+            </div>
+            <div>
+              <div className="text-xs text-muted-foreground">Status</div>
+              <div className="font-medium capitalize">
+                {(profile as any).status?.replace("_", " ") ?? "—"}
+              </div>
+            </div>
+            <div>
+              <div className="text-xs text-muted-foreground">Last login</div>
+              <div className="font-medium">
+                {(profile as any).last_login
+                  ? new Date((profile as any).last_login).toLocaleString()
+                  : "—"}
+              </div>
             </div>
           </div>
-        </div>
-      </Card>
-    </div>
+        </Card>
+      </div>
+    </PageTransition>
   );
 }

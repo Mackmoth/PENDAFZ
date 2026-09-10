@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useUserContext, ROLE_LABELS, type AppRole } from "@/lib/auth";
 import { useServerFn } from "@tanstack/react-start";
 import { inviteUser, updateUserAdmin, forceResetPassword } from "@/lib/admin.functions";
-import { PageHeader, EmptyState } from "@/components/AppShell";
+import { PageHeader, EmptyState, PageTransition } from "@/components/AppShell";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -27,6 +27,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
+import { formatRelativeTime } from "@/lib/pfms";
 import {
   UserPlus,
   Users as UsersIcon,
@@ -50,7 +51,6 @@ const ROLES: AppRole[] = [
   "attendance_officer",
   "welfare_officer",
   "secretary",
-  "branch_leader",
   "department_leader",
   "member",
 ];
@@ -62,7 +62,6 @@ type Row = {
   phone: string | null;
   status: string;
   department_id: string | null;
-  branch_id: string | null;
   last_login: string | null;
   roles: AppRole[];
   departmentIds: string[];
@@ -99,7 +98,9 @@ function TogglePills({
           </button>
         );
       })}
-      {options.length === 0 && <span className="text-xs text-muted-foreground">None available</span>}
+      {options.length === 0 && (
+        <span className="text-xs text-muted-foreground">None available</span>
+      )}
     </div>
   );
 }
@@ -109,21 +110,19 @@ function UsersPage() {
   const [rows, setRows] = useState<Row[]>([]);
   const [loading, setLoading] = useState(true);
   const [departments, setDepartments] = useState<Opt[]>([]);
-  const [branches, setBranches] = useState<Opt[]>([]);
   const [open, setOpen] = useState(false);
 
   const load = async () => {
     setLoading(true);
-    const [{ data: profiles }, { data: roles }, { data: userDeps }, { data: deps }, { data: brs }] =
+    const [{ data: profiles }, { data: roles }, { data: userDeps }, { data: deps }] =
       await Promise.all([
         supabase
           .from("profiles")
-          .select("id, full_name, email, phone, status, department_id, branch_id, last_login")
+          .select("id, full_name, email, phone, status, department_id, last_login")
           .order("created_at", { ascending: false }),
         supabase.from("user_roles").select("user_id, role"),
         supabase.from("user_departments").select("user_id, department_id"),
         supabase.from("departments").select("id, name").order("name"),
-        supabase.from("branches").select("id, name").order("name"),
       ]);
     const roleMap = new Map<string, AppRole[]>();
     (roles ?? []).forEach((r: any) => {
@@ -145,7 +144,6 @@ function UsersPage() {
       })),
     );
     setDepartments(deps ?? []);
-    setBranches(brs ?? []);
     setLoading(false);
   };
 
@@ -165,71 +163,65 @@ function UsersPage() {
   }
 
   return (
-    <div>
-      <PageHeader
-        title="Users & Roles"
-        description="Invite staff, assign roles, departments and personal numbers."
-        action={
-          <Dialog open={open} onOpenChange={setOpen}>
-            <DialogTrigger asChild>
-              <Button>
-                <UserPlus className="w-4 h-4 mr-2" />
-                Invite user
-              </Button>
-            </DialogTrigger>
-            <InviteDialog
-              departments={departments}
-              branches={branches}
-              onDone={() => {
-                setOpen(false);
-                load();
-              }}
-            />
-          </Dialog>
-        }
-      />
-
-      {loading ? (
-        <div className="py-10 text-center text-muted-foreground">
-          <Loader2 className="w-5 h-5 animate-spin inline" />
-        </div>
-      ) : rows.length === 0 ? (
-        <EmptyState
-          icon={UsersIcon}
-          title="No users yet"
-          description="Invite your first staff member to get started."
+    <PageTransition>
+      <div className="space-y-6">
+        <PageHeader
+          title="Users & Roles"
+          description={`Manage ${rows.length} user${rows.length === 1 ? "" : "s"}: invite staff, assign roles, departments and personal numbers.`}
+          action={
+            <Dialog open={open} onOpenChange={setOpen}>
+              <DialogTrigger asChild>
+                <Button>
+                  <UserPlus className="w-4 h-4 mr-2" />
+                  Invite user
+                </Button>
+              </DialogTrigger>
+              <InviteDialog
+                departments={departments}
+                onDone={() => {
+                  setOpen(false);
+                  load();
+                }}
+              />
+            </Dialog>
+          }
         />
-      ) : (
-        <div className="space-y-3">
-          {rows.map((r) => (
-            <UserRow
-              key={r.id}
-              row={r}
-              departments={departments}
-              branches={branches}
-              onChange={load}
-            />
-          ))}
-        </div>
-      )}
-    </div>
+
+        {loading ? (
+          <div className="skeleton-card divide-y divide-border overflow-hidden">
+            {[0, 1, 2, 3].map((i) => (
+              <div key={i} className="p-4 flex items-center gap-3">
+                <div className="skeleton skeleton-circle w-10 h-10" />
+                <div className="flex-1 space-y-2">
+                  <div className="skeleton skeleton-text w-1/3" />
+                  <div className="skeleton skeleton-text w-2/3" />
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : rows.length === 0 ? (
+          <EmptyState
+            icon={UsersIcon}
+            title="No users yet"
+            description="Invite your first staff member to get started."
+          />
+        ) : (
+          <div className="space-y-3 animate-fade-in">
+            {rows.map((r) => (
+              <UserRow key={r.id} row={r} departments={departments} onChange={load} />
+            ))}
+          </div>
+        )}
+      </div>
+    </PageTransition>
   );
 }
 
-function InviteDialog({
-  departments,
-  branches,
-  onDone,
-}: {
-  departments: Opt[];
-  branches: Opt[];
-  onDone: () => void;
-}) {
+function InviteDialog({ departments, onDone }: { departments: Opt[]; onDone: () => void }) {
   const invite = useServerFn(inviteUser);
   const [loading, setLoading] = useState(false);
   const [roles, setRoles] = useState<AppRole[]>(["member"]);
   const [departmentIds, setDepartmentIds] = useState<string[]>([]);
-  const [branchId, setBranchId] = useState<string>("");
 
   const submit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -248,7 +240,6 @@ function InviteDialog({
           roles,
           departmentId: departmentIds[0] ?? null,
           departmentIds,
-          branchId: branchId || null,
         },
       });
       toast.success("Invitation sent");
@@ -297,21 +288,6 @@ function InviteDialog({
             onToggle={(v) => toggle(departmentIds, setDepartmentIds, v)}
           />
         </div>
-        <div className="space-y-2">
-          <Label>Branch</Label>
-          <Select value={branchId} onValueChange={setBranchId}>
-            <SelectTrigger>
-              <SelectValue placeholder="None" />
-            </SelectTrigger>
-            <SelectContent>
-              {branches.map((b) => (
-                <SelectItem key={b.id} value={b.id}>
-                  {b.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
         <DialogFooter>
           <Button type="submit" disabled={loading}>
             {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Send invite"}
@@ -334,12 +310,10 @@ const STATUS_TONES: Record<string, string> = {
 function UserRow({
   row,
   departments,
-  branches,
   onChange,
 }: {
   row: Row;
   departments: Opt[];
-  branches: Opt[];
   onChange: () => void;
 }) {
   const update = useServerFn(updateUserAdmin);
@@ -351,7 +325,6 @@ function UserRow({
   const [status, setStatus] = useState(row.status);
   const [phone, setPhone] = useState(row.phone ?? "");
   const [departmentIds, setDepartmentIds] = useState<string[]>(row.departmentIds);
-  const [branchId, setBranchId] = useState(row.branch_id ?? "");
 
   const initials = (row.full_name ?? row.email ?? "?")
     .split(" ")
@@ -378,7 +351,6 @@ function UserRow({
           phone: phone.trim() || null,
           departmentId: departmentIds[0] ?? null,
           departmentIds,
-          branchId: branchId || null,
         },
       });
       toast.success("User updated");
@@ -424,6 +396,11 @@ function UserRow({
           <div className="font-medium text-foreground truncate">{row.full_name ?? "—"}</div>
           <div className="text-xs text-muted-foreground truncate">{row.email}</div>
           {row.phone && <div className="text-xs text-muted-foreground truncate">{row.phone}</div>}
+          {row.last_login && (
+            <div className="text-xs text-muted-foreground truncate">
+              Last login {formatRelativeTime(row.last_login)}
+            </div>
+          )}
           {depNames.length > 0 && (
             <div className="mt-1 flex flex-wrap gap-1">
               {depNames.map((n) => (
@@ -491,21 +468,6 @@ function UserRow({
                   ].map((s) => (
                     <SelectItem key={s} value={s}>
                       {s.replace("_", " ")}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs">Branch</Label>
-              <Select value={branchId} onValueChange={setBranchId}>
-                <SelectTrigger>
-                  <SelectValue placeholder="None" />
-                </SelectTrigger>
-                <SelectContent>
-                  {branches.map((b) => (
-                    <SelectItem key={b.id} value={b.id}>
-                      {b.name}
                     </SelectItem>
                   ))}
                 </SelectContent>

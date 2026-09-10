@@ -15,7 +15,6 @@ const inviteSchema = z.object({
         "attendance_officer",
         "welfare_officer",
         "secretary",
-        "branch_leader",
         "department_leader",
         "member",
       ]),
@@ -23,9 +22,7 @@ const inviteSchema = z.object({
     .min(1),
   departmentId: z.string().uuid().optional().nullable(),
   departmentIds: z.array(z.string().uuid()).optional(),
-  branchId: z.string().uuid().optional().nullable(),
 });
-
 
 async function assertAdmin(ctx: { supabase: any; userId: string }) {
   const [{ data: isSuper }, { data: isAdmin }] = await Promise.all([
@@ -46,10 +43,9 @@ export const inviteUser = createServerFn({ method: "POST" })
     }
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
-    const { data: invited, error } = await supabaseAdmin.auth.admin.inviteUserByEmail(
-      data.email,
-      { data: { full_name: data.fullName } },
-    );
+    const { data: invited, error } = await supabaseAdmin.auth.admin.inviteUserByEmail(data.email, {
+      data: { full_name: data.fullName },
+    });
     if (error) throw new Error(error.message);
     const newUserId = invited.user!.id;
 
@@ -61,7 +57,6 @@ export const inviteUser = createServerFn({ method: "POST" })
         full_name: data.fullName,
         phone: data.phone ?? null,
         department_id: data.departmentId ?? null,
-        branch_id: data.branchId ?? null,
         status: "pending_verification",
         created_by: context.userId,
       },
@@ -89,7 +84,6 @@ export const inviteUser = createServerFn({ method: "POST" })
       metadata: { email: data.email, roles: data.roles },
     });
 
-
     return { userId: newUserId };
   });
 
@@ -100,7 +94,6 @@ const roleEnum = z.enum([
   "attendance_officer",
   "welfare_officer",
   "secretary",
-  "branch_leader",
   "department_leader",
   "member",
 ]);
@@ -114,7 +107,6 @@ const updateUserSchema = z.object({
   phone: z.string().max(30).nullable().optional(),
   departmentId: z.string().uuid().nullable().optional(),
   departmentIds: z.array(z.string().uuid()).optional(),
-  branchId: z.string().uuid().nullable().optional(),
 });
 
 export const updateUserAdmin = createServerFn({ method: "POST" })
@@ -127,22 +119,15 @@ export const updateUserAdmin = createServerFn({ method: "POST" })
     }
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
-    if (
-      data.status ||
-      data.phone !== undefined ||
-      data.departmentId !== undefined ||
-      data.branchId !== undefined
-    ) {
+    if (data.status || data.phone !== undefined || data.departmentId !== undefined) {
       const patch: {
         status?: typeof data.status;
         phone?: string | null;
         department_id?: string | null;
-        branch_id?: string | null;
       } = {};
       if (data.status) patch.status = data.status;
       if (data.phone !== undefined) patch.phone = data.phone;
       if (data.departmentId !== undefined) patch.department_id = data.departmentId;
-      if (data.branchId !== undefined) patch.branch_id = data.branchId;
       await supabaseAdmin.from("profiles").update(patch).eq("id", data.userId);
     }
 
@@ -175,7 +160,6 @@ export const updateUserAdmin = createServerFn({ method: "POST" })
 
     return { ok: true };
   });
-
 
 const resetSchema = z.object({ userId: z.string().uuid() });
 export const forceResetPassword = createServerFn({ method: "POST" })
