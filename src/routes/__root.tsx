@@ -38,6 +38,11 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
   console.error(error);
   const router = useRouter();
 
+  const detail =
+    typeof error === "object" && error !== null
+      ? ((error as Error).message || String(error)).slice(0, 500)
+      : String(error);
+
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
       <div className="max-w-md text-center">
@@ -47,6 +52,11 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
         <p className="mt-2 text-sm text-muted-foreground">
           The page didn't load. Please try again.
         </p>
+        {detail && detail !== "Something went wrong" && (
+          <pre className="mt-4 rounded-md bg-muted p-3 text-left text-xs break-words whitespace-pre-wrap text-muted-foreground">
+            {detail}
+          </pre>
+        )}
         <div className="mt-6 flex flex-wrap justify-center gap-2">
           <button
             onClick={() => {
